@@ -10,6 +10,8 @@ import com.banking.util.LoggerUtil;
 
 import com.banking.reliability.CRCResult;
 import com.banking.reliability.CRCService;
+import com.banking.reliability.Frame;
+import com.banking.reliability.SlidingWindow;
 import com.banking.security.EncryptedMessage;
 import com.banking.security.EncryptionService;
 import javax.crypto.SecretKey;
@@ -21,7 +23,7 @@ import java.util.Optional;
 /**
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
  * Day 4 Distance Vector Routing, Day 5 Banking Transactions & SQLite Persistence,
- * Day 6 AES-GCM Encryption & Decryption, and Day 7 CRC Error Detection.
+ * Day 6 AES-GCM Encryption & Decryption, Day 7 CRC Error Detection, and Day 8 Sliding Window Protocol.
  */
 public class Main {
 
@@ -287,7 +289,79 @@ public class Main {
 
         System.out.println("\n==========================================");
         LoggerUtil.info("Day 7 CRC Error Detection demonstration completed successfully.");
+
+        System.out.println("\n==========================================");
+        System.out.println("DAY 8 - SLIDING WINDOW PROTOCOL");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Initializing Sliding Window Protocol (Total Frames: 6, Window Size: 3)...");
+        SlidingWindow slidingWindow = new SlidingWindow(6, 3);
+
+        String[] payloads = {
+            "HEADER: TXN-SEC-8821",
+            "SOURCE=ACC10001",
+            "DESTINATION=ACC10002",
+            "AMOUNT=5000.00",
+            "TYPE=TRANSFER",
+            "CHECKSUM=0xA953"
+        };
+
+        System.out.println("\nInitial Sliding Window State:");
+        System.out.println("-----------------------------");
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        System.out.println("\nTransmitting Initial Window Frames (0..2):");
+        System.out.println("----------------------------------------");
+        for (int i = 0; i < 3; i++) {
+            slidingWindow.sendNextFrame(payloads[i]);
+        }
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        System.out.println("\nProcessing ACK for Frame #0:");
+        System.out.println("---------------------------");
+        slidingWindow.receiveAcknowledgement(0);
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        System.out.println("\nSending Frame #3 into Available Window Slot:");
+        System.out.println("------------------------------------------");
+        slidingWindow.sendNextFrame(payloads[3]);
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        System.out.println("\nSimulating Loss of Frame #1:");
+        System.out.println("----------------------------");
+        slidingWindow.simulateFrameLoss(1);
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        System.out.println("\nProcessing ACK for Frame #2 (Out-of-order ACK before Frame #1):");
+        System.out.println("---------------------------------------------------------------");
+        slidingWindow.receiveAcknowledgement(2);
+        System.out.println(slidingWindow.getFormattedWindowState());
+        System.out.println("Base position (Stuck at #1 due to lost frame): " + slidingWindow.getBase());
+
+        System.out.println("\nRetransmitting and ACKing Lost Frame #1 & Remaining Frames:");
+        System.out.println("---------------------------------------------------------");
+        slidingWindow.receiveAcknowledgement(1); // ACK Frame #1 -> advances base past 2 to 3!
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        while (slidingWindow.canSend()) {
+            int seq = slidingWindow.getNextSequenceNumber();
+            slidingWindow.sendNextFrame(payloads[seq]);
+        }
+        System.out.println(slidingWindow.getFormattedWindowState());
+
+        for (int i = 3; i < 6; i++) {
+            slidingWindow.receiveAcknowledgement(i);
+        }
+
+        System.out.println("\nFinal Sliding Window State:");
+        System.out.println("---------------------------");
+        System.out.println(slidingWindow.getFormattedWindowState());
+        System.out.println("Transmission Complete : " + slidingWindow.isComplete());
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 8 Sliding Window Protocol demonstration completed successfully.");
     }
 }
+
 
 
