@@ -8,6 +8,8 @@ import com.banking.service.BankingService;
 import com.banking.service.BankingTransactionResult;
 import com.banking.util.LoggerUtil;
 
+import com.banking.reliability.CRCResult;
+import com.banking.reliability.CRCService;
 import com.banking.security.EncryptedMessage;
 import com.banking.security.EncryptionService;
 import javax.crypto.SecretKey;
@@ -19,7 +21,7 @@ import java.util.Optional;
 /**
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
  * Day 4 Distance Vector Routing, Day 5 Banking Transactions & SQLite Persistence,
- * and Day 6 AES-GCM Encryption & Decryption.
+ * Day 6 AES-GCM Encryption & Decryption, and Day 7 CRC Error Detection.
  */
 public class Main {
 
@@ -242,6 +244,50 @@ public class Main {
 
         System.out.println("\n==========================================");
         LoggerUtil.info("Day 6 Encryption & Decryption demonstration completed successfully.");
+
+        System.out.println("\n==========================================");
+        System.out.println("DAY 7 - CRC ERROR DETECTION");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Calculating CRC-16-CCITT for Banking Transaction Message...");
+        String originalTxnPayload = EncryptionService.serializeTransaction(txn);
+
+        System.out.println("\nOriginal Banking Message:");
+        System.out.println("-------------------------");
+        System.out.println(originalTxnPayload);
+
+        CRCResult crcResult = CRCService.process(originalTxnPayload);
+
+        System.out.println("\nCRC-16-CCITT Checksum:");
+        System.out.println("----------------------");
+        System.out.println(crcResult.getCrcFormatted());
+
+        boolean origVerify = CRCService.verifyCRC(originalTxnPayload, crcResult.getCrc());
+
+        System.out.println("\nOriginal Verification:");
+        System.out.println("----------------------");
+        System.out.println(origVerify ? "PASSED" : "FAILED");
+
+        System.out.println("\nSimulating Transmission Line Corruption...");
+        String corruptedTxnPayload = originalTxnPayload.replace("AMOUNT=5000.00", "AMOUNT=9000.00");
+
+        System.out.println("\nCorrupted Banking Message:");
+        System.out.println("--------------------------");
+        System.out.println(corruptedTxnPayload);
+
+        boolean corruptVerify = CRCService.verifyCRC(corruptedTxnPayload, crcResult.getCrc());
+
+        System.out.println("\nCorrupted Verification:");
+        System.out.println("-----------------------");
+        System.out.println(corruptVerify ? "PASSED" : "FAILED");
+
+        System.out.println("\nTransmission Error:");
+        System.out.println("-------------------");
+        System.out.println(!corruptVerify ? "DETECTED" : "UNDETECTED");
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 7 CRC Error Detection demonstration completed successfully.");
     }
 }
+
 
