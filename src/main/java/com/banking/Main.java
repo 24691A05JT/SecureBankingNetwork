@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Main application entry point demonstrating Day 2 IP Addressing and Day 3 Dijkstra Routing.
+ * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
+ * and Day 4 Distance Vector Routing & Algorithm Comparison.
  */
 public class Main {
 
@@ -72,7 +73,7 @@ public class Main {
         System.out.println("Total Nodes : " + topology.getNodeCount());
         System.out.println("Total Links : " + topology.getLinkCount());
 
-        DijkstraRouter router = new DijkstraRouter();
+        DijkstraRouter dijkstraRouter = new DijkstraRouter();
 
         NetworkNode srcNode = topology.getNode("NODE-B1");
         NetworkNode destNode = topology.getNode("NODE-DB");
@@ -82,20 +83,20 @@ public class Main {
         System.out.println("Source      : " + srcNode.getNodeName() + " (" + srcNode.getNodeId() + ")");
         System.out.println("Destination : " + destNode.getNodeName() + " (" + destNode.getNodeId() + ")");
 
-        DijkstraResult result = router.findShortestPath(topology, srcNode, destNode);
+        DijkstraResult dijkstraResult = dijkstraRouter.findShortestPath(topology, srcNode, destNode);
 
         System.out.println("\nShortest Path Calculation Result:");
         System.out.println("---------------------------------");
-        System.out.println("Path        : " + result.getFormattedPath());
-        System.out.println("Total Cost  : " + result.getTotalCost());
-        System.out.println("Next Hop    : " + (result.getNextHop() != null ? result.getNextHop().getNodeName() : "None"));
+        System.out.println("Path        : " + dijkstraResult.getFormattedPath());
+        System.out.println("Total Cost  : " + dijkstraResult.getTotalCost());
+        System.out.println("Next Hop    : " + (dijkstraResult.getNextHop() != null ? dijkstraResult.getNextHop().getNodeName() : "None"));
 
         System.out.println("\nRouting Table for " + srcNode.getNodeName() + " (" + srcNode.getNodeId() + "):");
         System.out.println("----------------------------------------------------------------------------------");
         System.out.printf("%-18s | %-24s | %-18s | %-6s | %s%n", "Source Node", "Destination Node", "Next Hop", "Cost", "Shortest Path");
         System.out.println("----------------------------------------------------------------------------------");
 
-        List<RoutingTableEntry> routingTable = router.buildRoutingTable(topology, srcNode);
+        List<RoutingTableEntry> routingTable = dijkstraRouter.buildRoutingTable(topology, srcNode);
         for (RoutingTableEntry entry : routingTable) {
             String nextHopStr = entry.getNextHop() != null ? entry.getNextHop().getNodeName() : (entry.getSourceNode().equals(entry.getDestinationNode()) ? "LOCAL" : "NONE");
             System.out.printf("%-18s | %-24s | %-18s | %-6.1f | %s%n",
@@ -107,7 +108,33 @@ public class Main {
         }
 
         System.out.println("----------------------------------------------------------------------------------");
+
         System.out.println("\n==========================================");
-        LoggerUtil.info("Day 3 Dijkstra Shortest Path Routing demonstration completed successfully.");
+        System.out.println("DAY 4 - DISTANCE VECTOR ROUTING");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Executing Distance Vector Bellman-Ford Iterative Routing Engine...");
+        DistanceVectorRouter dvRouter = new DistanceVectorRouter();
+        DistanceVectorResult dvResult = dvRouter.computeRouting(topology, srcNode, destNode);
+
+        System.out.println("\nDistance Vector Routing");
+        System.out.println("-----------------------");
+        System.out.println("Source      : " + srcNode.getNodeName() + " (" + srcNode.getNodeId() + ")");
+        System.out.println("Destination : " + destNode.getNodeName() + " (" + destNode.getNodeId() + ")");
+        System.out.println("Convergence : " + (dvResult.isConverged() ? "SUCCESS" : "FAILED"));
+        System.out.println("Iterations  : " + dvResult.getIterations());
+
+        System.out.println("\nShortest Path Calculation Result:");
+        System.out.println("---------------------------------");
+        System.out.println("Path        : " + dvResult.getFormattedPath());
+        System.out.println("Total Cost  : " + dvResult.getTotalCost());
+        System.out.println("Next Hop    : " + (dvResult.getNextHop() != null ? dvResult.getNextHop().getNodeName() : "None"));
+
+        System.out.println("\n" + dvResult.getAllTables().get(srcNode.getNodeId()).getFormattedTable());
+
+        System.out.println("\n" + RouteComparison.formatComparison(dijkstraResult, dvResult));
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 4 Distance Vector Routing demonstration completed successfully.");
     }
 }
