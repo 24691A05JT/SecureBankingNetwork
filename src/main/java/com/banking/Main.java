@@ -1,14 +1,13 @@
 package com.banking;
 
-import com.banking.network.BankingNetworkConfig;
-import com.banking.network.IPAddress;
-import com.banking.network.Subnet;
+import com.banking.network.*;
 import com.banking.util.LoggerUtil;
 
+import java.util.List;
 import java.util.Map;
 
 /**
- * Main application entry point demonstrating Day 2 IP Addressing and Subnetting functionality.
+ * Main application entry point demonstrating Day 2 IP Addressing and Day 3 Dijkstra Routing.
  */
 public class Main {
 
@@ -62,6 +61,53 @@ public class Main {
         System.out.println("Same Subnet: " + sameSubnet2);
 
         System.out.println("\n==========================================");
-        LoggerUtil.info("Day 2 IP Addressing & Subnetting demonstration finished successfully.");
+        System.out.println("DAY 3 - DIJKSTRA SHORTEST PATH ROUTING");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Constructing Simulated Banking Network Topology Graph...");
+        NetworkTopology topology = BankingTopologyBuilder.createSampleTopology();
+
+        System.out.println("\nNetwork Topology");
+        System.out.println("----------------");
+        System.out.println("Total Nodes : " + topology.getNodeCount());
+        System.out.println("Total Links : " + topology.getLinkCount());
+
+        DijkstraRouter router = new DijkstraRouter();
+
+        NetworkNode srcNode = topology.getNode("NODE-B1");
+        NetworkNode destNode = topology.getNode("NODE-DB");
+
+        System.out.println("\nRouting Request");
+        System.out.println("---------------");
+        System.out.println("Source      : " + srcNode.getNodeName() + " (" + srcNode.getNodeId() + ")");
+        System.out.println("Destination : " + destNode.getNodeName() + " (" + destNode.getNodeId() + ")");
+
+        DijkstraResult result = router.findShortestPath(topology, srcNode, destNode);
+
+        System.out.println("\nShortest Path Calculation Result:");
+        System.out.println("---------------------------------");
+        System.out.println("Path        : " + result.getFormattedPath());
+        System.out.println("Total Cost  : " + result.getTotalCost());
+        System.out.println("Next Hop    : " + (result.getNextHop() != null ? result.getNextHop().getNodeName() : "None"));
+
+        System.out.println("\nRouting Table for " + srcNode.getNodeName() + " (" + srcNode.getNodeId() + "):");
+        System.out.println("----------------------------------------------------------------------------------");
+        System.out.printf("%-18s | %-24s | %-18s | %-6s | %s%n", "Source Node", "Destination Node", "Next Hop", "Cost", "Shortest Path");
+        System.out.println("----------------------------------------------------------------------------------");
+
+        List<RoutingTableEntry> routingTable = router.buildRoutingTable(topology, srcNode);
+        for (RoutingTableEntry entry : routingTable) {
+            String nextHopStr = entry.getNextHop() != null ? entry.getNextHop().getNodeName() : (entry.getSourceNode().equals(entry.getDestinationNode()) ? "LOCAL" : "NONE");
+            System.out.printf("%-18s | %-24s | %-18s | %-6.1f | %s%n",
+                    entry.getSourceNode().getNodeName(),
+                    entry.getDestinationNode().getNodeName(),
+                    nextHopStr,
+                    entry.getTotalCost(),
+                    entry.getFormattedPath());
+        }
+
+        System.out.println("----------------------------------------------------------------------------------");
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 3 Dijkstra Shortest Path Routing demonstration completed successfully.");
     }
 }
