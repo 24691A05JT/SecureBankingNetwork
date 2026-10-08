@@ -11,6 +11,7 @@ import com.banking.util.LoggerUtil;
 import com.banking.reliability.CRCResult;
 import com.banking.reliability.CRCService;
 import com.banking.reliability.Frame;
+import com.banking.reliability.GoBackN;
 import com.banking.reliability.SlidingWindow;
 import com.banking.security.EncryptedMessage;
 import com.banking.security.EncryptionService;
@@ -23,7 +24,8 @@ import java.util.Optional;
 /**
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
  * Day 4 Distance Vector Routing, Day 5 Banking Transactions & SQLite Persistence,
- * Day 6 AES-GCM Encryption & Decryption, Day 7 CRC Error Detection, and Day 8 Sliding Window Protocol.
+ * Day 6 AES-GCM Encryption & Decryption, Day 7 CRC Error Detection, Day 8 Sliding Window Protocol,
+ * and Day 9 Go-Back-N ARQ Protocol.
  */
 public class Main {
 
@@ -360,8 +362,66 @@ public class Main {
 
         System.out.println("\n==========================================");
         LoggerUtil.info("Day 8 Sliding Window Protocol demonstration completed successfully.");
+
+        System.out.println("\n==========================================");
+        System.out.println("DAY 9 - GO-BACK-N ARQ PROTOCOL");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Initializing Go-Back-N ARQ Protocol (Total Frames: 6, Window Size: 3)...");
+        GoBackN gbn = new GoBackN(6, 3);
+
+        String[] gbnPayloads = {
+            "HEADER: TXN-GBN-9942",
+            "SRC=ACC10001",
+            "DEST=ACC10002",
+            "AMOUNT=5000.00",
+            "TYPE=TRANSFER",
+            "CRC=0x29B1"
+        };
+
+        System.out.println("\nInitial Go-Back-N State:");
+        System.out.println("------------------------");
+        System.out.println(gbn.getFormattedState());
+
+        System.out.println("\nTransmitting Frame #0 (Delivered & Accepted):");
+        System.out.println("-------------------------------------------");
+        gbn.sendNextFrame(gbnPayloads[0]);
+        System.out.println(gbn.getFormattedState());
+
+        System.out.println("\nSimulating Network Loss of Frame #1...");
+        gbn.simulateFrameLoss(1);
+
+        System.out.println("\nTransmitting Frame #1 (Lost) and Frame #2 (Discarded out-of-order):");
+        System.out.println("----------------------------------------------------------------");
+        gbn.sendNextFrame(gbnPayloads[1]); // Lost
+        gbn.sendNextFrame(gbnPayloads[2]); // Sent, but discarded because receiver expects #1!
+
+        System.out.println("\nState After Frame #1 Loss & Frame #2 Discard:");
+        System.out.println("--------------------------------------------");
+        System.out.println(gbn.getFormattedState());
+
+        System.out.println("\nTimeout Detected! Triggering Go-Back-N Window Retransmission...");
+        System.out.println("---------------------------------------------------------------");
+        gbn.handleTimeout();
+        System.out.println(gbn.getFormattedState());
+
+        System.out.println("\nTransmitting Remaining Frames (3..5):");
+        System.out.println("-------------------------------------");
+        while (gbn.canSend()) {
+            int seq = gbn.getNextSequenceNumber();
+            gbn.sendNextFrame(gbnPayloads[seq]);
+        }
+
+        System.out.println("\nFinal Go-Back-N Protocol State:");
+        System.out.println("-------------------------------");
+        System.out.println(gbn.getFormattedState());
+        System.out.println("Transmission Complete : " + gbn.isComplete());
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 9 Go-Back-N ARQ demonstration completed successfully.");
     }
 }
+
 
 
 
