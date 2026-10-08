@@ -1,14 +1,20 @@
 package com.banking;
 
+import com.banking.database.AccountRepository;
+import com.banking.database.DatabaseManager;
+import com.banking.model.*;
 import com.banking.network.*;
+import com.banking.service.BankingService;
+import com.banking.service.BankingTransactionResult;
 import com.banking.util.LoggerUtil;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
- * and Day 4 Distance Vector Routing & Algorithm Comparison.
+ * Day 4 Distance Vector Routing, and Day 5 Banking Transactions & SQLite Persistence.
  */
 public class Main {
 
@@ -135,6 +141,58 @@ public class Main {
         System.out.println("\n" + RouteComparison.formatComparison(dijkstraResult, dvResult));
 
         System.out.println("\n==========================================");
-        LoggerUtil.info("Day 4 Distance Vector Routing demonstration completed successfully.");
+        System.out.println("DAY 5 - BANKING TRANSACTION SYSTEM");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Connecting to SQLite Database & Initializing Schema...");
+        DatabaseManager dbManager = new DatabaseManager();
+        dbManager.initializeSchema();
+        dbManager.seedSampleData();
+
+        System.out.println("\nDatabase:");
+        System.out.println("SQLite (" + dbManager.getDbUrl() + ")");
+        System.out.println("\nDatabase Status:");
+        System.out.println("CONNECTED");
+
+        AccountRepository accountRepo = new AccountRepository(dbManager);
+        BankingService bankingService = new BankingService(dbManager);
+
+        Optional<Account> acc1BeforeOpt = accountRepo.findByAccountNumber("ACC10001");
+        Optional<Account> acc2BeforeOpt = accountRepo.findByAccountNumber("ACC10002");
+
+        System.out.println("\nDemo Accounts (Before Transfer):");
+        System.out.println("-------------------------------");
+        acc1BeforeOpt.ifPresent(acc -> System.out.printf("%s : ₹%.2f%n", acc.getAccountNumber(), acc.getBalance()));
+        acc2BeforeOpt.ifPresent(acc -> System.out.printf("%s : ₹%.2f%n", acc.getAccountNumber(), acc.getBalance()));
+
+        String srcAcc = "ACC10001";
+        String destAcc = "ACC10002";
+        double transferAmount = 5000.0;
+
+        System.out.println("\nTransaction Request");
+        System.out.println("-------------------");
+        System.out.println("Source      : " + srcAcc);
+        System.out.println("Destination : " + destAcc);
+        System.out.printf("Amount      : ₹%.2f%n", transferAmount);
+
+        BankingTransactionResult txResult = bankingService.transfer(srcAcc, destAcc, transferAmount);
+
+        System.out.println("\nTransaction Result");
+        System.out.println("------------------");
+        System.out.println("Transaction ID : " + txResult.getTransactionId());
+        System.out.println("Status         : " + (txResult.isSuccess() ? "SUCCESS" : "FAILED"));
+        System.out.println("Message        : " + txResult.getMessage());
+
+        Optional<Account> acc1AfterOpt = accountRepo.findByAccountNumber("ACC10001");
+        Optional<Account> acc2AfterOpt = accountRepo.findByAccountNumber("ACC10002");
+
+        System.out.println("\nUpdated Balances (After Transfer)");
+        System.out.println("---------------------------------");
+        acc1AfterOpt.ifPresent(acc -> System.out.printf("%s : ₹%.2f%n", acc.getAccountNumber(), acc.getBalance()));
+        acc2AfterOpt.ifPresent(acc -> System.out.printf("%s : ₹%.2f%n", acc.getAccountNumber(), acc.getBalance()));
+
+        System.out.println("\nTransaction stored successfully in SQLite database.");
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 5 Banking Transactions demonstration completed successfully.");
     }
 }
