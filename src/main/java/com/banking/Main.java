@@ -8,13 +8,18 @@ import com.banking.service.BankingService;
 import com.banking.service.BankingTransactionResult;
 import com.banking.util.LoggerUtil;
 
+import com.banking.security.EncryptedMessage;
+import com.banking.security.EncryptionService;
+import javax.crypto.SecretKey;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
- * Day 4 Distance Vector Routing, and Day 5 Banking Transactions & SQLite Persistence.
+ * Day 4 Distance Vector Routing, Day 5 Banking Transactions & SQLite Persistence,
+ * and Day 6 AES-GCM Encryption & Decryption.
  */
 public class Main {
 
@@ -192,7 +197,51 @@ public class Main {
         acc2AfterOpt.ifPresent(acc -> System.out.printf("%s : ₹%.2f%n", acc.getAccountNumber(), acc.getBalance()));
 
         System.out.println("\nTransaction stored successfully in SQLite database.");
+
         System.out.println("\n==========================================");
-        LoggerUtil.info("Day 5 Banking Transactions demonstration completed successfully.");
+        System.out.println("DAY 6 - ENCRYPTION & DECRYPTION");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Generating 256-bit AES Cryptographic Key...");
+        SecretKey secretKey = EncryptionService.generateKey();
+
+        Transaction txn = new Transaction("ACC10001", "ACC10002", 5000.00, TransactionType.TRANSFER, "Day 6 Secure Wire Transfer");
+        txn.setStatus(TransactionStatus.SUCCESS);
+
+        String originalMessage = EncryptionService.serializeTransaction(txn);
+
+        System.out.println("\nOriginal Transaction Message:");
+        System.out.println("-----------------------------");
+        System.out.println(originalMessage);
+
+        EncryptedMessage encryptedMessage = EncryptionService.encryptTransaction(txn, secretKey);
+
+        System.out.println("\nEncrypted Transaction:");
+        System.out.println("----------------------");
+        System.out.println(encryptedMessage.getEncryptedData());
+
+        System.out.println("\nInitialization Vector (IV):");
+        System.out.println("---------------------------");
+        System.out.println(encryptedMessage.getInitializationVector());
+
+        Transaction decryptedTxn = EncryptionService.decryptTransaction(encryptedMessage, secretKey);
+        String decryptedMessage = EncryptionService.serializeTransaction(decryptedTxn);
+
+        System.out.println("\nDecrypted Transaction Message:");
+        System.out.println("------------------------------");
+        System.out.println(decryptedMessage);
+
+        boolean verified = originalMessage.equals(decryptedMessage);
+        if (verified) {
+            LoggerUtil.info("Encryption round-trip verification passed.");
+        }
+
+        System.out.println("\nVerification:");
+        System.out.println("-------------");
+        System.out.println("Original == Decrypted : " + verified);
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 6 Encryption & Decryption demonstration completed successfully.");
     }
 }
+
