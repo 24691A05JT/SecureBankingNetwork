@@ -8,6 +8,8 @@ import com.banking.service.BankingService;
 import com.banking.service.BankingTransactionResult;
 import com.banking.util.LoggerUtil;
 
+import com.banking.communication.BankingClient;
+import com.banking.communication.BankingServer;
 import com.banking.reliability.CRCResult;
 import com.banking.reliability.CRCService;
 import com.banking.reliability.Frame;
@@ -25,7 +27,7 @@ import java.util.Optional;
  * Main application entry point demonstrating Day 2 IP Subnetting, Day 3 Dijkstra Routing,
  * Day 4 Distance Vector Routing, Day 5 Banking Transactions & SQLite Persistence,
  * Day 6 AES-GCM Encryption & Decryption, Day 7 CRC Error Detection, Day 8 Sliding Window Protocol,
- * and Day 9 Go-Back-N ARQ Protocol.
+ * Day 9 Go-Back-N ARQ Protocol, and Day 10 Real Java TCP Client/Server Communication.
  */
 public class Main {
 
@@ -419,8 +421,50 @@ public class Main {
 
         System.out.println("\n==========================================");
         LoggerUtil.info("Day 9 Go-Back-N ARQ demonstration completed successfully.");
+
+        System.out.println("\n==========================================");
+        System.out.println("DAY 10 - TCP CLIENT/SERVER COMMUNICATION");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Starting Banking TCP Server on localhost...");
+        BankingServer tcpServer = new BankingServer(0); // Auto-binds to available port
+        tcpServer.start();
+
+        int serverPort = tcpServer.getPort();
+        System.out.println("\nServer Status:");
+        System.out.println("--------------");
+        System.out.println("Host   : 127.0.0.1");
+        System.out.println("Port   : " + serverPort);
+        System.out.println("Status : RUNNING");
+
+        BankingClient tcpClient = new BankingClient();
+        String tcpRequest = "BANKING_TRANSACTION_REQUEST|SRC=ACC10001|DEST=ACC10002|AMT=₹5000.00|TYPE=TRANSFER";
+
+        System.out.println("\nClient Transmission:");
+        System.out.println("--------------------");
+        System.out.println("Request Payload : " + tcpRequest);
+
+        try {
+            String tcpResponse = tcpClient.sendMessage("127.0.0.1", serverPort, tcpRequest);
+
+            System.out.println("\nServer Response:");
+            System.out.println("----------------");
+            System.out.println("Response Payload : " + tcpResponse);
+            System.out.println("Status           : SUCCESS");
+        } catch (Exception e) {
+            System.err.println("TCP Communication Error: " + e.getMessage());
+        } finally {
+            tcpServer.stop();
+            System.out.println("\nServer Status:");
+            System.out.println("--------------");
+            System.out.println("Status : STOPPED");
+        }
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 10 TCP Client/Server demonstration completed successfully.");
     }
 }
+
 
 
 
