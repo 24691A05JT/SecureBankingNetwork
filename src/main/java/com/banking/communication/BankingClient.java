@@ -43,6 +43,7 @@ public class BankingClient {
             throw new IllegalArgumentException("Message payload exceeds maximum size limit of " + MAX_MESSAGE_SIZE + " bytes");
         }
 
+        LoggerUtil.info("Client initiating TCP connection to " + host + ":" + port);
         try (Socket socket = new Socket(host, port);
              DataOutputStream out = new DataOutputStream(socket.getOutputStream());
              DataInputStream in = new DataInputStream(socket.getInputStream())) {

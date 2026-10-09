@@ -57,6 +57,7 @@ public class BankingServer {
             running = true;
 
             LoggerUtil.info("Banking TCP Server started on " + DEFAULT_HOST + ":" + getPort());
+            LoggerUtil.info("TCP_CAPTURE_TARGET=" + DEFAULT_HOST + ":" + getPort());
 
             serverThread = new Thread(this::listenLoop, "BankingServer-Loop");
             serverThread.setDaemon(true);
@@ -83,6 +84,7 @@ public class BankingServer {
     }
 
     private void handleClient(Socket socket) {
+        LoggerUtil.info("TCP Server accepted connection from " + socket.getRemoteSocketAddress());
         try (Socket clientSocket = socket;
              DataInputStream in = new DataInputStream(clientSocket.getInputStream());
              DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
