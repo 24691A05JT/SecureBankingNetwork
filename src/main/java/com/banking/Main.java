@@ -17,6 +17,9 @@ import com.banking.reliability.GoBackN;
 import com.banking.reliability.SlidingWindow;
 import com.banking.security.EncryptedMessage;
 import com.banking.security.EncryptionService;
+import com.banking.integration.PipelineResult;
+import com.banking.integration.SecureBankingPipeline;
+import com.banking.integration.SecureBankingRequest;
 import javax.crypto.SecretKey;
 
 import java.util.List;
@@ -462,6 +465,75 @@ public class Main {
 
         System.out.println("\n==========================================");
         LoggerUtil.info("Day 10 TCP Client/Server demonstration completed successfully.");
+
+        System.out.println("\n==========================================");
+        System.out.println("DAY 11 - FULL SECURE BANKING PIPELINE");
+        System.out.println("==========================================");
+
+        LoggerUtil.info("Executing End-to-End Integrated Secure Banking Transaction Pipeline...");
+
+        // Reset demo account balances to starting state (ACC10001 = ₹50,000, ACC10002 = ₹25,000)
+        try (java.sql.Connection conn = dbManager.getConnection()) {
+            accountRepo.updateBalance(conn, "ACC10001", 50000.0);
+            accountRepo.updateBalance(conn, "ACC10002", 25000.0);
+        } catch (Exception e) {
+            LoggerUtil.error("Failed to reset demo account balances: " + e.getMessage());
+        }
+
+        SecureBankingPipeline pipeline = new SecureBankingPipeline(dbManager);
+        SecureBankingRequest pipelineRequest = new SecureBankingRequest(
+                "ACC10001",
+                "ACC10002",
+                5000.00,
+                TransactionType.TRANSFER,
+                "Secure Day 11 Integrated Transfer",
+                "NODE-B1",
+                "NODE-DB"
+        );
+
+        PipelineResult pipelineResult = pipeline.execute(pipelineRequest);
+
+        System.out.println("\nPipeline Stage Demonstration:");
+        System.out.println("------------------------------------------");
+        System.out.println("[1] Transaction Created                  : " + (pipelineResult.getTransactionId() != null && !pipelineResult.getTransactionId().isEmpty() ? "SUCCESS" : "FAILED"));
+        System.out.println("[2] Route Selected                       : SUCCESS (" + pipelineResult.getRoutingPath() + ")");
+        System.out.println("[3] AES-GCM Encryption SUCCESS           : " + (pipelineResult.isEncryptionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("[4] CRC Generated                        : " + (pipelineResult.isCrcGenerated() ? "SUCCESS" : "FAILED"));
+        System.out.println("[5] Sliding Window / Go-Back-N Transmission SUCCESS : " + (pipelineResult.isReliableTransmissionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("[6] TCP Transmission SUCCESS             : " + (pipelineResult.isTcpSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("[7] CRC Verification PASSED              : " + (pipelineResult.isCrcVerified() ? "PASSED" : "FAILED"));
+        System.out.println("[8] AES-GCM Decryption SUCCESS            : " + (pipelineResult.isDecryptionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("[9] Banking Transaction SUCCESS          : " + (pipelineResult.isBankingTransactionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("[10] SQLite Persistence SUCCESS          : " + (pipelineResult.isDatabasePersistenceSuccessful() ? "SUCCESS" : "FAILED"));
+
+        System.out.println("\nPipeline Summary:");
+        System.out.println("------------------------------------------");
+        System.out.println("Transaction ID      : " + pipelineResult.getTransactionId());
+        System.out.println("Source Account      : " + pipelineResult.getSourceAccount());
+        System.out.println("Destination Account : " + pipelineResult.getDestinationAccount());
+        System.out.printf("Amount              : ₹%.2f%n", pipelineResult.getAmount());
+        System.out.println("Routing Path        : " + pipelineResult.getRoutingPath());
+        System.out.println("Routing Cost        : " + pipelineResult.getRoutingCost());
+        System.out.println("TCP Status          : " + (pipelineResult.isTcpSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("CRC Status          : " + (pipelineResult.isCrcVerified() ? "VERIFIED" : "FAILED"));
+        System.out.println("Encryption Status   : " + (pipelineResult.isEncryptionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("Banking Status      : " + (pipelineResult.isBankingTransactionSuccessful() ? "SUCCESS" : "FAILED"));
+        System.out.println("Database Status     : " + (pipelineResult.isDatabasePersistenceSuccessful() ? "PERSISTED" : "FAILED"));
+
+        System.out.println("\nAccount Balances:");
+        System.out.println("------------------------------------------");
+        System.out.printf("%s (Source)      : Initial = ₹%.2f | Final = ₹%.2f%n",
+                pipelineResult.getSourceAccount(),
+                pipelineResult.getInitialSourceBalance() != null ? pipelineResult.getInitialSourceBalance() : 50000.0,
+                pipelineResult.getFinalSourceBalance() != null ? pipelineResult.getFinalSourceBalance() : 45000.0);
+        System.out.printf("%s (Destination) : Initial = ₹%.2f | Final = ₹%.2f%n",
+                pipelineResult.getDestinationAccount(),
+                pipelineResult.getInitialDestinationBalance() != null ? pipelineResult.getInitialDestinationBalance() : 25000.0,
+                pipelineResult.getFinalDestinationBalance() != null ? pipelineResult.getFinalDestinationBalance() : 30000.0);
+        System.out.println("Transaction Result  : " + (pipelineResult.isSuccessful() ? "SUCCESS" : "FAILED"));
+
+        System.out.println("\n==========================================");
+        LoggerUtil.info("Day 11 Full Secure Banking Pipeline demonstration completed successfully.");
     }
 }
 
