@@ -221,3 +221,10 @@ The **Secure Banking Network** successfully demonstrates that financial transact
 3. Tanenbaum, A. S., & Wetherall, D. J. (2011). *Computer Networks* (5th ed.). Prentice Hall.
 4. Oracle Corporation. (2026). *Java Cryptography Architecture (JCA) Reference Guide*.
 5. OpenJFX Project. (2024). *JavaFX Documentation*.
+
+## Wireshark Network Evidence
+
+An actual Wireshark capture was performed using the Npcap loopback adapter. TCP communication over the local loopback address 127.0.0.1 was captured and saved as wireshark/tcp.pcapng.
+
+This capture provides packet-level evidence for the TCP communication layer of the banking network application. Other project features such as routing, AES-GCM encryption, CRC verification, reliability mechanisms, and database operations are validated separately through application tests and execution logs.
+

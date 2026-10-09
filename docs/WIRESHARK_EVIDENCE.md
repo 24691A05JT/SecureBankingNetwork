@@ -54,3 +54,18 @@
 Inspect hex dump of packet `4`:
 - **Expected Data**: `Base64 Ciphertext + IV + CRC`
 - **Result**: Plaintext strings such as `"5000.00"` or `"ACC10001"` are **ABSENT** from the wire packet, confirming cryptographic confidentiality.
+
+## Actual Wireshark Capture Evidence
+
+An actual Wireshark packet capture was performed using the **Adapter for loopback traffic capture** with Npcap.
+
+The application TCP communication used the local loopback address:
+
+- Source/Destination: 127.0.0.1
+- Protocol: TCP
+- Capture file: wireshark/tcp.pcapng
+
+The saved .pcapng file provides packet-level evidence of TCP communication between the Java banking application components over the local loopback interface.
+
+This capture demonstrates the network/TCP communication layer of the project. It should not be interpreted as direct proof of AES-GCM encryption, CRC verification, routing algorithms, or database operations; those are validated separately through application tests and execution logs.
+

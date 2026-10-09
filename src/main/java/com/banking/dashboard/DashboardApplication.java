@@ -6,8 +6,8 @@ import com.banking.integration.PipelineResult;
 import com.banking.integration.SecureBankingPipeline;
 import com.banking.integration.SecureBankingRequest;
 import com.banking.model.Account;
-import com.banking.model.NetworkNode;
-import com.banking.model.NodeType;
+import com.banking.network.NetworkNode;
+import com.banking.network.NodeType;
 import com.banking.model.TransactionType;
 import com.banking.network.*;
 import com.banking.util.LoggerUtil;
@@ -31,6 +31,9 @@ import javafx.stage.Stage;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * Professional JavaFX Dashboard Application for the Secure Banking Network.
@@ -47,6 +50,14 @@ public class DashboardApplication extends Application {
     private DistanceVectorRouter dvRouter;
     private SecureBankingPipeline pipeline;
 
+    private final ExecutorService bgExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "dashboard-bg-worker");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private Consumer<String> logListener;
+
     // UI Controls
     private Label acc1BalanceLabel;
     private Label acc2BalanceLabel;
@@ -56,6 +67,8 @@ public class DashboardApplication extends Application {
     private Label routingSummaryLabel;
     private Label dvSummaryLabel;
     private TextArea activityLogArea;
+    private Button btnProcess;
+    private Button btnResetBalances;
 
     // Stage Status Checkmarks
     private final Map<String, Label> stageCheckmarkLabels = new LinkedHashMap<>();
@@ -147,11 +160,13 @@ public class DashboardApplication extends Application {
         root.setBottom(createActivityLogPanel());
 
         // Attach LoggerUtil listener for live feed
-        LoggerUtil.addListener(log -> Platform.runLater(() -> {
+        logListener = log -> Platform.runLater(() -> {
             if (activityLogArea != null) {
                 activityLogArea.appendText(log + "\n");
+                activityLogArea.positionCaret(activityLogArea.getLength());
             }
-        }));
+        });
+        LoggerUtil.addListener(logListener);
 
         Scene scene = new Scene(root, 1420, 880);
         primaryStage.setScene(scene);
@@ -547,12 +562,12 @@ public class DashboardApplication extends Application {
         inputsGrid.add(amtLbl, 0, 2);
         inputsGrid.add(amountField, 1, 2);
 
-        Button btnProcess = new Button("🔒 PROCESS SECURE TRANSACTION");
+        btnProcess = new Button("🔒 PROCESS SECURE TRANSACTION");
         btnProcess.setMaxWidth(Double.MAX_VALUE);
         btnProcess.setStyle("-fx-background-color: #059669; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10; -fx-background-radius: 6; -fx-cursor: hand;");
         btnProcess.setOnAction(e -> handleProcessTransaction());
 
-        Button btnResetBalances = new Button("↺ Reset Demo Balances (₹50k / ₹25k)");
+        btnResetBalances = new Button("↺ Reset Demo Balances (₹50k / ₹25k)");
         btnResetBalances.setMaxWidth(Double.MAX_VALUE);
         btnResetBalances.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 6; -fx-background-radius: 4; -fx-cursor: hand;");
         btnResetBalances.setOnAction(e -> handleResetBalances());
@@ -699,21 +714,45 @@ public class DashboardApplication extends Application {
         // Create Request & Execute Pipeline
         SecureBankingRequest request = new SecureBankingRequest(srcAcc, destAcc, amount, TransactionType.TRANSFER, "Dashboard Secure Transfer");
 
+        if (btnProcess != null) {
+            btnProcess.setDisable(true);
+            btnProcess.setText("⏳ PROCESSING PIPELINE...");
+        }
+
         LoggerUtil.info(String.format("Processing Secure Banking Pipeline: Transfer ₹%.2f from %s to %s", amount, srcAcc, destAcc));
 
-        PipelineResult result = pipeline.execute(request);
+        bgExecutor.submit(() -> {
+            try {
+                PipelineResult result = pipeline.execute(request);
 
-        // Update Checklist
-        updateChecklist(result);
+                Platform.runLater(() -> {
+                    // Update Checklist
+                    updateChecklist(result);
 
-        // Update Balances in UI
-        updateAccountBalances();
+                    // Update Balances in UI
+                    updateAccountBalances();
 
-        if (result.isSuccessful()) {
-            LoggerUtil.info("Pipeline Execution PASSED cleanly for Txn ID: " + result.getTransactionId());
-        } else {
-            LoggerUtil.warn("Pipeline Execution FAILED: " + result.getErrorMessage());
-        }
+                    if (result.isSuccessful()) {
+                        LoggerUtil.info("Pipeline Execution PASSED cleanly for Txn ID: " + result.getTransactionId());
+                    } else {
+                        LoggerUtil.warn("Pipeline Execution FAILED: " + result.getErrorMessage());
+                    }
+
+                    if (btnProcess != null) {
+                        btnProcess.setDisable(false);
+                        btnProcess.setText("🔒 PROCESS SECURE TRANSACTION");
+                    }
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    LoggerUtil.error("Pipeline Execution Exception: " + ex.getMessage());
+                    if (btnProcess != null) {
+                        btnProcess.setDisable(false);
+                        btnProcess.setText("🔒 PROCESS SECURE TRANSACTION");
+                    }
+                });
+            }
+        });
     }
 
     private void updateChecklist(PipelineResult result) {
@@ -742,26 +781,44 @@ public class DashboardApplication extends Application {
     }
 
     private void updateAccountBalances() {
-        try (Connection conn = dbManager.getConnection()) {
-            Optional<Account> acc1 = accountRepo.findByAccountNumber(conn, "ACC10001");
-            Optional<Account> acc2 = accountRepo.findByAccountNumber(conn, "ACC10002");
+        bgExecutor.submit(() -> {
+            try (Connection conn = dbManager.getConnection()) {
+                Optional<Account> acc1 = accountRepo.findByAccountNumber(conn, "ACC10001");
+                Optional<Account> acc2 = accountRepo.findByAccountNumber(conn, "ACC10002");
 
-            acc1.ifPresent(account -> acc1BalanceLabel.setText(String.format("₹%.2f", account.getBalance())));
-            acc2.ifPresent(account -> acc2BalanceLabel.setText(String.format("₹%.2f", account.getBalance())));
-        } catch (SQLException e) {
-            LoggerUtil.error("Failed to refresh account balances from SQLite: " + e.getMessage());
-        }
+                String bal1Str = acc1.map(account -> String.format("₹%.2f", account.getBalance())).orElse("₹0.00");
+                String bal2Str = acc2.map(account -> String.format("₹%.2f", account.getBalance())).orElse("₹0.00");
+
+                Platform.runLater(() -> {
+                    if (acc1BalanceLabel != null) acc1BalanceLabel.setText(bal1Str);
+                    if (acc2BalanceLabel != null) acc2BalanceLabel.setText(bal2Str);
+                });
+            } catch (SQLException e) {
+                LoggerUtil.error("Failed to refresh account balances from SQLite: " + e.getMessage());
+            }
+        });
     }
 
     private void handleResetBalances() {
-        try (Connection conn = dbManager.getConnection()) {
-            accountRepo.updateBalance(conn, "ACC10001", 50000.0);
-            accountRepo.updateBalance(conn, "ACC10002", 25000.0);
-            updateAccountBalances();
-            LoggerUtil.info("Demo account balances reset to ACC10001 = ₹50,000.00 and ACC10002 = ₹25,000.00");
-        } catch (SQLException e) {
-            LoggerUtil.error("Failed to reset demo balances: " + e.getMessage());
+        if (btnResetBalances != null) {
+            btnResetBalances.setDisable(true);
         }
+        bgExecutor.submit(() -> {
+            try (Connection conn = dbManager.getConnection()) {
+                accountRepo.updateBalance(conn, "ACC10001", 50000.0);
+                accountRepo.updateBalance(conn, "ACC10002", 25000.0);
+                updateAccountBalances();
+                LoggerUtil.info("Demo account balances reset to ACC10001 = ₹50,000.00 and ACC10002 = ₹25,000.00");
+            } catch (SQLException e) {
+                LoggerUtil.error("Failed to reset demo balances: " + e.getMessage());
+            } finally {
+                Platform.runLater(() -> {
+                    if (btnResetBalances != null) {
+                        btnResetBalances.setDisable(false);
+                    }
+                });
+            }
+        });
     }
 
     private void showAlert(String title, String content) {
@@ -774,6 +831,12 @@ public class DashboardApplication extends Application {
 
     @Override
     public void stop() throws Exception {
+        if (logListener != null) {
+            LoggerUtil.removeListener(logListener);
+        }
+        if (bgExecutor != null) {
+            bgExecutor.shutdownNow();
+        }
         if (dbManager != null) {
             dbManager.close();
         }
