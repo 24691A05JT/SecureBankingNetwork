@@ -100,8 +100,12 @@ public class DashboardApplication extends Application {
         Label nameLabel;
         Label ipLabel;
         Label statusLabel;
+        Color defaultStrokeColor;
+        double defaultStrokeWidth;
 
-        NodeVisual(NetworkNode node, double x, double y, StackPane visualGroup, ShapeVisual shape, Label nameLabel, Label ipLabel, Label statusLabel) {
+        NodeVisual(NetworkNode node, double x, double y, StackPane visualGroup, ShapeVisual shape,
+                   Label nameLabel, Label ipLabel, Label statusLabel,
+                   Color defaultStrokeColor, double defaultStrokeWidth) {
             this.node = node;
             this.x = x;
             this.y = y;
@@ -110,6 +114,8 @@ public class DashboardApplication extends Application {
             this.nameLabel = nameLabel;
             this.ipLabel = ipLabel;
             this.statusLabel = statusLabel;
+            this.defaultStrokeColor = defaultStrokeColor;
+            this.defaultStrokeWidth = defaultStrokeWidth;
         }
     }
 
@@ -185,11 +191,12 @@ public class DashboardApplication extends Application {
         primaryStage.show();
         primaryStage.centerOnScreen();
 
-        // Perform initial topology scale adjustment after layout
+        // Perform initial topology scale adjustment after layout and highlight shortest route
         Platform.runLater(() -> {
             if (topologyContainer != null) {
                 rescaleTopology(topologyContainer.getWidth(), topologyContainer.getHeight());
             }
+            handleFindShortestRoute();
         });
 
         LoggerUtil.info("Secure Banking Dashboard initialized successfully.");
@@ -315,8 +322,8 @@ public class DashboardApplication extends Application {
         double scaleX = (containerWidth - 20) / TOPOLOGY_BASE_WIDTH;
         double scaleY = (containerHeight - 20) / TOPOLOGY_BASE_HEIGHT;
         double scale = Math.min(scaleX, scaleY);
-        // Clamp scale so topology remains sharp and legible
-        scale = Math.max(0.60, Math.min(scale, 1.30));
+        // Clamp scale so topology remains sharp, legible, and responsive across displays
+        scale = Math.max(0.50, Math.min(scale, 1.50));
         topologyPane.setScaleX(scale);
         topologyPane.setScaleY(scale);
     }
@@ -327,16 +334,17 @@ public class DashboardApplication extends Application {
         linkVisualList.clear();
 
         Map<String, NodePos> positions = new HashMap<>();
-        positions.put("NODE-B1", new NodePos(80, 110));
-        positions.put("ROUTER-B1", new NodePos(260, 110));
-        positions.put("NODE-ATM", new NodePos(260, 250));
-        positions.put("ROUTER-HQ", new NodePos(490, 200));
-        positions.put("NODE-HQ", new NodePos(490, 70));
-        positions.put("NODE-MGMT", new NodePos(690, 70));
-        positions.put("NODE-DB", new NodePos(690, 200));
-        positions.put("ROUTER-B2", new NodePos(260, 370));
-        positions.put("NODE-B2", new NodePos(80, 370));
-        positions.put("NODE-CS", new NodePos(490, 370));
+        // Perfectly balanced planar layout keeping all 10 nodes and links completely visible
+        positions.put("NODE-B1", new NodePos(85, 95));
+        positions.put("ROUTER-B1", new NodePos(275, 95));
+        positions.put("NODE-ATM", new NodePos(85, 210));
+        positions.put("ROUTER-B2", new NodePos(275, 350));
+        positions.put("NODE-B2", new NodePos(85, 350));
+        positions.put("ROUTER-HQ", new NodePos(485, 210));
+        positions.put("NODE-HQ", new NodePos(485, 75));
+        positions.put("NODE-CS", new NodePos(485, 350));
+        positions.put("NODE-MGMT", new NodePos(675, 75));
+        positions.put("NODE-DB", new NodePos(675, 210));
 
         // 1. Draw Links
         Set<String> drawnLinkKeys = new HashSet<>();
@@ -353,17 +361,22 @@ public class DashboardApplication extends Application {
             if (p1 == null || p2 == null) continue;
 
             Line line = new Line(p1.x, p1.y, p2.x, p2.y);
-            line.setStroke(Color.web("#475569"));
+            line.setStroke(Color.web("#64748b"));
             line.setStrokeWidth(2.0);
+            line.setOpacity(0.90);
 
             double midX = (p1.x + p2.x) / 2;
             double midY = (p1.y + p2.y) / 2;
             Label costLabel = new Label("Cost: " + String.format("%.1f", link.getCost()));
             costLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
             costLabel.setTextFill(Color.web("#94a3b8"));
-            costLabel.setStyle("-fx-background-color: #0f172a; -fx-padding: 1 4; -fx-background-radius: 4;");
-            costLabel.setLayoutX(midX - 18);
-            costLabel.setLayoutY(midY - 8);
+            costLabel.setStyle("-fx-background-color: #0f172a; -fx-padding: 2 6; -fx-background-radius: 4; -fx-border-color: #334155; -fx-border-radius: 4; -fx-border-width: 1.0;");
+            costLabel.setPrefWidth(60);
+            costLabel.setMinWidth(60);
+            costLabel.setMaxWidth(60);
+            costLabel.setAlignment(Pos.CENTER);
+            costLabel.setLayoutX(midX - 30);
+            costLabel.setLayoutY(midY - 10);
 
             topologyPane.getChildren().addAll(line, costLabel);
             linkVisualList.add(new LinkVisual(link, line, costLabel));
@@ -380,6 +393,8 @@ public class DashboardApplication extends Application {
             nodeGroup.setPrefSize(90, 60);
 
             javafx.scene.shape.Shape shapeComp;
+            Color defaultStroke;
+            double defaultStrokeWidth;
 
             if (node.getNodeType() == NodeType.ROUTER) {
                 Circle circle = new Circle(28);
@@ -387,38 +402,46 @@ public class DashboardApplication extends Application {
                 circle.setStroke(Color.web("#06b6d4"));
                 circle.setStrokeWidth(2.5);
                 shapeComp = circle;
+                defaultStroke = Color.web("#06b6d4");
+                defaultStrokeWidth = 2.5;
             } else if (node.getNodeType() == NodeType.SERVER) {
-                Rectangle rect = new Rectangle(80, 50, Color.web("#312e81"));
+                Rectangle rect = new Rectangle(84, 52, Color.web("#312e81"));
                 rect.setArcWidth(10);
                 rect.setArcHeight(10);
-                rect.setStroke(Color.web("#10b981"));
-                rect.setStrokeWidth(2.5);
+                rect.setStroke(Color.web("#8b5cf6"));
+                rect.setStrokeWidth(2.0);
                 shapeComp = rect;
+                defaultStroke = Color.web("#8b5cf6");
+                defaultStrokeWidth = 2.0;
             } else if (node.getNodeType() == NodeType.ATM) {
-                Rectangle rect = new Rectangle(75, 48, Color.web("#0891b2"));
+                Rectangle rect = new Rectangle(78, 50, Color.web("#0891b2"));
                 rect.setArcWidth(8);
                 rect.setArcHeight(8);
                 rect.setStroke(Color.web("#38bdf8"));
                 rect.setStrokeWidth(2.0);
                 shapeComp = rect;
+                defaultStroke = Color.web("#38bdf8");
+                defaultStrokeWidth = 2.0;
             } else {
-                Rectangle rect = new Rectangle(75, 48, Color.web("#334155"));
+                Rectangle rect = new Rectangle(78, 50, Color.web("#334155"));
                 rect.setArcWidth(8);
                 rect.setArcHeight(8);
                 rect.setStroke(Color.web("#94a3b8"));
                 rect.setStrokeWidth(2.0);
                 shapeComp = rect;
+                defaultStroke = Color.web("#94a3b8");
+                defaultStrokeWidth = 2.0;
             }
 
             VBox labelBox = new VBox(1);
             labelBox.setAlignment(Pos.CENTER);
             Label nameL = new Label(node.getNodeName());
-            nameL.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
+            nameL.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9.5));
             nameL.setTextFill(Color.web("#f8fafc"));
 
             Label ipL = new Label(node.getIpAddress().getDottedDecimal());
             ipL.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 9));
-            ipL.setTextFill(Color.web("#94a3b8"));
+            ipL.setTextFill(Color.web("#cbd5e1"));
 
             Label statusL = new Label("● ONLINE");
             statusL.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
@@ -428,7 +451,8 @@ public class DashboardApplication extends Application {
             nodeGroup.getChildren().addAll(shapeComp, labelBox);
 
             topologyPane.getChildren().add(nodeGroup);
-            nodeVisualMap.put(node.getNodeId(), new NodeVisual(node, pos.x, pos.y, nodeGroup, new ShapeVisual(shapeComp), nameL, ipL, statusL));
+            nodeVisualMap.put(node.getNodeId(), new NodeVisual(node, pos.x, pos.y, nodeGroup, new ShapeVisual(shapeComp),
+                    nameL, ipL, statusL, defaultStroke, defaultStrokeWidth));
         }
     }
 
@@ -465,15 +489,19 @@ public class DashboardApplication extends Application {
     }
 
     private void highlightRoute(List<String> pathNodeIds) {
-        // Reset all nodes
+        // Highlight nodes along the path
         for (NodeVisual nv : nodeVisualMap.values()) {
             boolean inPath = pathNodeIds.contains(nv.node.getNodeId());
             if (inPath) {
                 nv.shape.shapeComponent.setStroke(Color.web("#10b981"));
                 nv.shape.shapeComponent.setStrokeWidth(3.5);
+                nv.statusLabel.setText("● ACTIVE ROUTE");
+                nv.statusLabel.setTextFill(Color.web("#10b981"));
             } else {
-                nv.shape.shapeComponent.setStroke(Color.web("#475569"));
-                nv.shape.shapeComponent.setStrokeWidth(2.0);
+                nv.shape.shapeComponent.setStroke(nv.defaultStrokeColor);
+                nv.shape.shapeComponent.setStrokeWidth(nv.defaultStrokeWidth);
+                nv.statusLabel.setText("● ONLINE");
+                nv.statusLabel.setTextFill(Color.web("#10b981"));
             }
         }
 
@@ -494,26 +522,44 @@ public class DashboardApplication extends Application {
 
             if (isPathLink) {
                 lv.lineComponent.setStroke(Color.web("#10b981"));
-                lv.lineComponent.setStrokeWidth(4.0);
-                lv.costLabel.setTextFill(Color.web("#10b981"));
+                lv.lineComponent.setStrokeWidth(4.5);
+                lv.lineComponent.setOpacity(1.0);
+                lv.costLabel.setTextFill(Color.web("#34d399"));
+                lv.costLabel.setStyle("-fx-background-color: #064e3b; -fx-padding: 2 6; -fx-background-radius: 4; -fx-border-color: #10b981; -fx-border-radius: 4; -fx-border-width: 1.5;");
+                lv.lineComponent.toFront();
+                lv.costLabel.toFront();
             } else {
-                lv.lineComponent.setStroke(Color.web("#475569"));
+                lv.lineComponent.setStroke(Color.web("#64748b"));
                 lv.lineComponent.setStrokeWidth(2.0);
+                lv.lineComponent.setOpacity(0.90);
                 lv.costLabel.setTextFill(Color.web("#94a3b8"));
+                lv.costLabel.setStyle("-fx-background-color: #0f172a; -fx-padding: 2 6; -fx-background-radius: 4; -fx-border-color: #334155; -fx-border-radius: 4; -fx-border-width: 1.0;");
             }
+        }
+
+        // Ensure all node cards stay in front of lines
+        for (NodeVisual nv : nodeVisualMap.values()) {
+            nv.visualGroup.toFront();
         }
     }
 
     private void clearRouteHighlight() {
         activePathNodeIds.clear();
         for (NodeVisual nv : nodeVisualMap.values()) {
-            nv.shape.shapeComponent.setStroke(Color.web("#06b6d4"));
-            nv.shape.shapeComponent.setStrokeWidth(2.0);
+            nv.shape.shapeComponent.setStroke(nv.defaultStrokeColor);
+            nv.shape.shapeComponent.setStrokeWidth(nv.defaultStrokeWidth);
+            nv.statusLabel.setText("● ONLINE");
+            nv.statusLabel.setTextFill(Color.web("#10b981"));
         }
         for (LinkVisual lv : linkVisualList) {
-            lv.lineComponent.setStroke(Color.web("#475569"));
+            lv.lineComponent.setStroke(Color.web("#64748b"));
             lv.lineComponent.setStrokeWidth(2.0);
+            lv.lineComponent.setOpacity(0.90);
             lv.costLabel.setTextFill(Color.web("#94a3b8"));
+            lv.costLabel.setStyle("-fx-background-color: #0f172a; -fx-padding: 2 6; -fx-background-radius: 4; -fx-border-color: #334155; -fx-border-radius: 4; -fx-border-width: 1.0;");
+        }
+        for (NodeVisual nv : nodeVisualMap.values()) {
+            nv.visualGroup.toFront();
         }
         routingSummaryLabel.setText("Selected Route: None");
         routingSummaryLabel.setTextFill(Color.web("#94a3b8"));
