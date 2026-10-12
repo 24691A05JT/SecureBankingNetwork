@@ -25,7 +25,6 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
 import java.sql.Connection;
@@ -40,6 +39,7 @@ import java.util.function.Consumer;
  * Provides real-time visual network topology monitoring, Dijkstra & Distance Vector routing visualization,
  * AES-GCM security metrics, CRC error detection, sliding window reliability status, real TCP socket monitoring,
  * live transaction processing, and database balance reflection.
+ * Responsive design tailored for standard laptop screens (1366x768) and resizable displays.
  */
 public class DashboardApplication extends Application {
 
@@ -77,8 +77,12 @@ public class DashboardApplication extends Application {
     private final Map<String, NodeVisual> nodeVisualMap = new LinkedHashMap<>();
     private final List<LinkVisual> linkVisualList = new ArrayList<>();
     private Pane topologyPane;
+    private StackPane topologyContainer;
 
     private List<String> activePathNodeIds = new ArrayList<>();
+
+    private static final double TOPOLOGY_BASE_WIDTH = 760.0;
+    private static final double TOPOLOGY_BASE_HEIGHT = 420.0;
 
     private static class NodePos {
         double x, y;
@@ -164,14 +168,29 @@ public class DashboardApplication extends Application {
             if (activityLogArea != null) {
                 activityLogArea.appendText(log + "\n");
                 activityLogArea.positionCaret(activityLogArea.getLength());
+                activityLogArea.setScrollTop(Double.MAX_VALUE);
             }
         });
         LoggerUtil.addListener(logListener);
 
-        Scene scene = new Scene(root, 1420, 880);
+        // Safe 1200x700 default dimensions perfectly fit 1366x768 screens
+        Scene scene = new Scene(root, 1200, 700);
         primaryStage.setScene(scene);
+        primaryStage.setMinWidth(960);
+        primaryStage.setMinHeight(580);
         primaryStage.setResizable(true);
+
+        // Ensure dashboard opens centered on screen
+        primaryStage.centerOnScreen();
         primaryStage.show();
+        primaryStage.centerOnScreen();
+
+        // Perform initial topology scale adjustment after layout
+        Platform.runLater(() -> {
+            if (topologyContainer != null) {
+                rescaleTopology(topologyContainer.getWidth(), topologyContainer.getHeight());
+            }
+        });
 
         LoggerUtil.info("Secure Banking Dashboard initialized successfully.");
         updateAccountBalances();
@@ -181,20 +200,20 @@ public class DashboardApplication extends Application {
     // TOP HEADER BAR
     // ==========================================
     private VBox createHeaderBar() {
-        VBox header = new VBox(8);
-        header.setPadding(new Insets(14, 20, 14, 20));
+        VBox header = new VBox(6);
+        header.setPadding(new Insets(8, 16, 8, 16));
         header.setStyle("-fx-background-color: #1e293b; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;");
 
         HBox topRow = new HBox();
         topRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox titleBox = new VBox(2);
+        VBox titleBox = new VBox(1);
         Label title = new Label("SECURE BANKING NETWORK");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
         title.setTextFill(Color.web("#38bdf8")); // Bright Cyan
 
         Label subtitle = new Label("Secure & Reliable Banking Communication Monitoring System");
-        subtitle.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 12));
+        subtitle.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
         subtitle.setTextFill(Color.web("#94a3b8"));
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -202,7 +221,7 @@ public class DashboardApplication extends Application {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         // Status Badges
-        HBox statusBadges = new HBox(10);
+        HBox statusBadges = new HBox(8);
         statusBadges.setAlignment(Pos.CENTER_RIGHT);
         statusBadges.getChildren().addAll(
                 createBadge("SYSTEM", "ONLINE", "#10b981"),
@@ -217,14 +236,14 @@ public class DashboardApplication extends Application {
     }
 
     private HBox createBadge(String category, String status, String colorHex) {
-        HBox badge = new HBox(6);
+        HBox badge = new HBox(5);
         badge.setAlignment(Pos.CENTER);
-        badge.setPadding(new Insets(4, 10, 4, 10));
-        badge.setStyle("-fx-background-color: #0f172a; -fx-border-color: " + colorHex + "; -fx-border-radius: 12; -fx-background-radius: 12;");
+        badge.setPadding(new Insets(3, 8, 3, 8));
+        badge.setStyle("-fx-background-color: #0f172a; -fx-border-color: " + colorHex + "; -fx-border-radius: 10; -fx-background-radius: 10;");
 
-        Circle dot = new Circle(4, Color.web(colorHex));
+        Circle dot = new Circle(3.5, Color.web(colorHex));
         Label label = new Label(category + ": " + status);
-        label.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+        label.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
         label.setTextFill(Color.web("#f8fafc"));
 
         badge.getChildren().addAll(dot, label);
@@ -235,49 +254,71 @@ public class DashboardApplication extends Application {
     // CENTER: NETWORK TOPOLOGY & ROUTING
     // ==========================================
     private VBox createCenterTopologyPanel() {
-        VBox center = new VBox(12);
-        center.setPadding(new Insets(16));
+        VBox center = new VBox(8);
+        center.setPadding(new Insets(10, 12, 10, 12));
         center.setStyle("-fx-background-color: #0f172a;");
 
         // Action Toolbar
-        HBox actionToolbar = new HBox(12);
+        HBox actionToolbar = new HBox(10);
         actionToolbar.setAlignment(Pos.CENTER_LEFT);
 
         Button btnFindRoute = new Button("⚡ FIND SHORTEST ROUTE (DIJKSTRA)");
-        btnFindRoute.setStyle("-fx-background-color: #0284c7; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 8 16; -fx-cursor: hand;");
+        btnFindRoute.setStyle("-fx-background-color: #0284c7; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-font-size: 11px; -fx-cursor: hand;");
         btnFindRoute.setOnAction(e -> handleFindShortestRoute());
 
         Button btnResetRoute = new Button("↺ CLEAR ROUTE");
-        btnResetRoute.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 8 12; -fx-cursor: hand;");
+        btnResetRoute.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 10; -fx-font-size: 11px; -fx-cursor: hand;");
         btnResetRoute.setOnAction(e -> clearRouteHighlight());
 
         routingSummaryLabel = new Label("Selected Route: None (Click 'Find Shortest Route' to compute path)");
-        routingSummaryLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 12));
+        routingSummaryLabel.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
         routingSummaryLabel.setTextFill(Color.web("#94a3b8"));
 
         actionToolbar.getChildren().addAll(btnFindRoute, btnResetRoute, routingSummaryLabel);
 
-        // Topology Canvas Container
+        // Topology Canvas
         topologyPane = new Pane();
-        topologyPane.setPrefSize(780, 460);
-        topologyPane.setStyle("-fx-background-color: #1e293b; -fx-border-color: #334155; -fx-border-radius: 8; -fx-background-radius: 8;");
+        topologyPane.setPrefSize(TOPOLOGY_BASE_WIDTH, TOPOLOGY_BASE_HEIGHT);
+        topologyPane.setMinSize(TOPOLOGY_BASE_WIDTH, TOPOLOGY_BASE_HEIGHT);
+        topologyPane.setMaxSize(TOPOLOGY_BASE_WIDTH, TOPOLOGY_BASE_HEIGHT);
 
         buildTopologyVisual();
 
+        // Responsive scalable container
+        topologyContainer = new StackPane(topologyPane);
+        topologyContainer.setAlignment(Pos.CENTER);
+        topologyContainer.setStyle("-fx-background-color: #1e293b; -fx-border-color: #334155; -fx-border-radius: 8; -fx-background-radius: 8;");
+        VBox.setVgrow(topologyContainer, Priority.ALWAYS);
+
+        // Dynamic scale listeners for responsive resizing without clipping
+        topologyContainer.widthProperty().addListener((obs, oldVal, newVal) -> rescaleTopology(newVal.doubleValue(), topologyContainer.getHeight()));
+        topologyContainer.heightProperty().addListener((obs, oldVal, newVal) -> rescaleTopology(topologyContainer.getWidth(), newVal.doubleValue()));
+
         // Routing Engine Metrics Box
-        HBox metricsBox = new HBox(20);
-        metricsBox.setPadding(new Insets(10, 16, 10, 16));
+        HBox metricsBox = new HBox(16);
+        metricsBox.setPadding(new Insets(8, 14, 8, 14));
         metricsBox.setStyle("-fx-background-color: #1e293b; -fx-border-color: #334155; -fx-border-radius: 8; -fx-background-radius: 8;");
         metricsBox.setAlignment(Pos.CENTER_LEFT);
 
         dvSummaryLabel = new Label("Routing Comparison | Link-State (Dijkstra): Ready | Distance Vector (Bellman-Ford): Ready");
-        dvSummaryLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        dvSummaryLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
         dvSummaryLabel.setTextFill(Color.web("#38bdf8"));
+        dvSummaryLabel.setWrapText(true);
         metricsBox.getChildren().add(dvSummaryLabel);
 
-        center.getChildren().addAll(actionToolbar, topologyPane, metricsBox);
-        VBox.setVgrow(topologyPane, Priority.ALWAYS);
+        center.getChildren().addAll(actionToolbar, topologyContainer, metricsBox);
         return center;
+    }
+
+    private void rescaleTopology(double containerWidth, double containerHeight) {
+        if (containerWidth <= 20 || containerHeight <= 20 || topologyPane == null) return;
+        double scaleX = (containerWidth - 20) / TOPOLOGY_BASE_WIDTH;
+        double scaleY = (containerHeight - 20) / TOPOLOGY_BASE_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+        // Clamp scale so topology remains sharp and legible
+        scale = Math.max(0.60, Math.min(scale, 1.30));
+        topologyPane.setScaleX(scale);
+        topologyPane.setScaleY(scale);
     }
 
     private void buildTopologyVisual() {
@@ -339,7 +380,6 @@ public class DashboardApplication extends Application {
             nodeGroup.setPrefSize(90, 60);
 
             javafx.scene.shape.Shape shapeComp;
-            String borderColor = "#38bdf8";
 
             if (node.getNodeType() == NodeType.ROUTER) {
                 Circle circle = new Circle(28);
@@ -483,9 +523,10 @@ public class DashboardApplication extends Application {
     // RIGHT SIDEBAR: CONTROLS & STATUS CARDS
     // ==========================================
     private ScrollPane createSidebarControlPanel() {
-        VBox sidebar = new VBox(14);
-        sidebar.setPadding(new Insets(16));
-        sidebar.setPrefWidth(430);
+        VBox sidebar = new VBox(10);
+        sidebar.setPadding(new Insets(10, 12, 10, 12));
+        sidebar.setPrefWidth(370);
+        sidebar.setMinWidth(340);
         sidebar.setStyle("-fx-background-color: #0f172a;");
 
         // 1. Account Summary & Transaction Card
@@ -502,6 +543,8 @@ public class DashboardApplication extends Application {
 
         ScrollPane scroll = new ScrollPane(sidebar);
         scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.setStyle("-fx-background-color: #0f172a; -fx-background: #0f172a; -fx-border-color: #334155; -fx-border-width: 0 0 0 1;");
         return scroll;
     }
@@ -511,24 +554,24 @@ public class DashboardApplication extends Application {
 
         // Account Balances Display
         GridPane balancesGrid = new GridPane();
-        balancesGrid.setHgap(12);
-        balancesGrid.setVgap(6);
+        balancesGrid.setHgap(10);
+        balancesGrid.setVgap(4);
 
         Label acc1Title = new Label("ACC10001 (Savings):");
         acc1Title.setTextFill(Color.web("#94a3b8"));
-        acc1Title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        acc1Title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
 
         acc1BalanceLabel = new Label("₹50,000.00");
         acc1BalanceLabel.setTextFill(Color.web("#10b981"));
-        acc1BalanceLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+        acc1BalanceLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
 
         Label acc2Title = new Label("ACC10002 (Current):");
         acc2Title.setTextFill(Color.web("#94a3b8"));
-        acc2Title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        acc2Title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
 
         acc2BalanceLabel = new Label("₹25,000.00");
         acc2BalanceLabel.setTextFill(Color.web("#10b981"));
-        acc2BalanceLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+        acc2BalanceLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
 
         balancesGrid.add(acc1Title, 0, 0);
         balancesGrid.add(acc1BalanceLabel, 1, 0);
@@ -537,23 +580,26 @@ public class DashboardApplication extends Application {
 
         // Inputs
         GridPane inputsGrid = new GridPane();
-        inputsGrid.setHgap(10);
-        inputsGrid.setVgap(8);
+        inputsGrid.setHgap(8);
+        inputsGrid.setVgap(6);
 
         Label srcLbl = new Label("Source Acc:");
         srcLbl.setTextFill(Color.web("#cbd5e1"));
+        srcLbl.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
         sourceAccField = new TextField("ACC10001");
-        sourceAccField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4;");
+        sourceAccField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4; -fx-padding: 4 8;");
 
         Label destLbl = new Label("Dest Acc:");
         destLbl.setTextFill(Color.web("#cbd5e1"));
+        destLbl.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
         destAccField = new TextField("ACC10002");
-        destAccField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4;");
+        destAccField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4; -fx-padding: 4 8;");
 
         Label amtLbl = new Label("Amount (₹):");
         amtLbl.setTextFill(Color.web("#cbd5e1"));
+        amtLbl.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
         amountField = new TextField("5000.00");
-        amountField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4;");
+        amountField.setStyle("-fx-background-color: #0f172a; -fx-text-fill: white; -fx-border-color: #475569; -fx-border-radius: 4; -fx-padding: 4 8;");
 
         inputsGrid.add(srcLbl, 0, 0);
         inputsGrid.add(sourceAccField, 1, 0);
@@ -564,12 +610,12 @@ public class DashboardApplication extends Application {
 
         btnProcess = new Button("🔒 PROCESS SECURE TRANSACTION");
         btnProcess.setMaxWidth(Double.MAX_VALUE);
-        btnProcess.setStyle("-fx-background-color: #059669; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10; -fx-background-radius: 6; -fx-cursor: hand;");
+        btnProcess.setStyle("-fx-background-color: #059669; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 8 12; -fx-background-radius: 6; -fx-cursor: hand;");
         btnProcess.setOnAction(e -> handleProcessTransaction());
 
         btnResetBalances = new Button("↺ Reset Demo Balances (₹50k / ₹25k)");
         btnResetBalances.setMaxWidth(Double.MAX_VALUE);
-        btnResetBalances.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 6; -fx-background-radius: 4; -fx-cursor: hand;");
+        btnResetBalances.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 5 8; -fx-background-radius: 4; -fx-cursor: hand;");
         btnResetBalances.setOnAction(e -> handleResetBalances());
 
         card.getChildren().addAll(balancesGrid, new Separator(), inputsGrid, btnProcess, btnResetBalances);
@@ -580,23 +626,23 @@ public class DashboardApplication extends Application {
         VBox card = createCardContainer("PIPELINE STAGE VERIFICATION");
         GridPane grid = new GridPane();
         grid.setHgap(12);
-        grid.setVgap(5);
+        grid.setVgap(4);
 
         String[] stages = {
-            "ROUTING",
-            "ENCRYPTION",
-            "CRC GENERATION",
-            "RELIABLE DELIVERY",
-            "TCP COMMUNICATION",
-            "CRC VERIFICATION",
-            "DECRYPTION",
-            "BANKING TRANSACTION",
-            "DATABASE PERSISTENCE"
+            "Routing",
+            "Encryption",
+            "CRC Generation",
+            "Reliable Delivery",
+            "TCP Communication",
+            "CRC Verification",
+            "Decryption",
+            "Banking Transaction",
+            "Database Persistence"
         };
 
         stageCheckmarkLabels.clear();
         for (int i = 0; i < stages.length; i++) {
-            Label stageLbl = new Label(stages[i]);
+            Label stageLbl = new Label(stages[i] + ":");
             stageLbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
             stageLbl.setTextFill(Color.web("#cbd5e1"));
 
@@ -605,6 +651,7 @@ public class DashboardApplication extends Application {
             checkmark.setTextFill(Color.web("#94a3b8"));
 
             stageCheckmarkLabels.put(stages[i], checkmark);
+            stageCheckmarkLabels.put(stages[i].toUpperCase(), checkmark);
 
             grid.add(stageLbl, 0, i);
             grid.add(checkmark, 1, i);
@@ -617,8 +664,8 @@ public class DashboardApplication extends Application {
     private VBox createSecurityStatusCard() {
         VBox card = createCardContainer("SECURITY STATUS");
         GridPane grid = new GridPane();
-        grid.setHgap(14);
-        grid.setVgap(6);
+        grid.setHgap(12);
+        grid.setVgap(4);
 
         addStatusRow(grid, 0, "AES-GCM Status:", "ACTIVE", "#10b981");
         addStatusRow(grid, 1, "Encryption:", "AES-256-GCM", "#38bdf8");
@@ -633,8 +680,8 @@ public class DashboardApplication extends Application {
     private VBox createReliabilityTcpCard() {
         VBox card = createCardContainer("RELIABILITY & TCP PROTOCOL");
         GridPane grid = new GridPane();
-        grid.setHgap(14);
-        grid.setVgap(6);
+        grid.setHgap(12);
+        grid.setVgap(4);
 
         addStatusRow(grid, 0, "Sliding Window:", "ACTIVE (Size: 2)", "#10b981");
         addStatusRow(grid, 1, "Go-Back-N ARQ:", "ACTIVE", "#10b981");
@@ -660,12 +707,12 @@ public class DashboardApplication extends Application {
     }
 
     private VBox createCardContainer(String titleText) {
-        VBox card = new VBox(10);
-        card.setPadding(new Insets(14));
+        VBox card = new VBox(8);
+        card.setPadding(new Insets(10, 12, 10, 12));
         card.setStyle("-fx-background-color: #1e293b; -fx-border-color: #334155; -fx-border-radius: 8; -fx-background-radius: 8;");
 
         Label title = new Label(titleText);
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
         title.setTextFill(Color.web("#38bdf8"));
 
         card.getChildren().add(title);
@@ -676,17 +723,20 @@ public class DashboardApplication extends Application {
     // BOTTOM: ACTIVITY LOG PANEL
     // ==========================================
     private VBox createActivityLogPanel() {
-        VBox panel = new VBox(6);
-        panel.setPadding(new Insets(10, 16, 12, 16));
+        VBox panel = new VBox(4);
+        panel.setPadding(new Insets(6, 14, 8, 14));
         panel.setStyle("-fx-background-color: #0f172a; -fx-border-color: #334155; -fx-border-width: 1 0 0 0;");
 
         Label title = new Label("SYSTEM ACTIVITY LOG FEED");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
         title.setTextFill(Color.web("#94a3b8"));
 
         activityLogArea = new TextArea();
-        activityLogArea.setPrefHeight(150);
+        activityLogArea.setPrefHeight(120);
+        activityLogArea.setMinHeight(80);
+        activityLogArea.setMaxHeight(160);
         activityLogArea.setEditable(false);
+        activityLogArea.setWrapText(false);
         activityLogArea.setStyle("-fx-control-inner-background: #020617; -fx-text-fill: #38bdf8; -fx-font-family: 'Consolas', 'Courier New', monospace; -fx-font-size: 11px;");
 
         panel.getChildren().addAll(title, activityLogArea);
@@ -719,6 +769,11 @@ public class DashboardApplication extends Application {
             btnProcess.setText("⏳ PROCESSING PIPELINE...");
         }
 
+        for (Label check : stageCheckmarkLabels.values()) {
+            check.setText("PENDING");
+            check.setTextFill(Color.web("#38bdf8"));
+        }
+
         LoggerUtil.info(String.format("Processing Secure Banking Pipeline: Transfer ₹%.2f from %s to %s", amount, srcAcc, destAcc));
 
         bgExecutor.submit(() -> {
@@ -726,15 +781,13 @@ public class DashboardApplication extends Application {
                 PipelineResult result = pipeline.execute(request);
 
                 Platform.runLater(() -> {
-                    // Update Checklist
+                    // Update Checklist on JavaFX Application Thread
                     updateChecklist(result);
 
                     // Update Balances in UI
                     updateAccountBalances();
 
-                    if (result.isSuccessful()) {
-                        LoggerUtil.info("Pipeline Execution PASSED cleanly for Txn ID: " + result.getTransactionId());
-                    } else {
+                    if (!result.isSuccessful()) {
                         LoggerUtil.warn("Pipeline Execution FAILED: " + result.getErrorMessage());
                     }
 
@@ -756,25 +809,29 @@ public class DashboardApplication extends Application {
     }
 
     private void updateChecklist(PipelineResult result) {
-        setCheckmark("ROUTING", result.isSuccessful() || (result.getRoutingPath() != null && !result.getRoutingPath().isEmpty()));
-        setCheckmark("ENCRYPTION", result.isEncryptionSuccessful());
-        setCheckmark("CRC GENERATION", result.isCrcGenerated());
-        setCheckmark("RELIABLE DELIVERY", result.isReliableTransmissionSuccessful());
-        setCheckmark("TCP COMMUNICATION", result.isTcpSuccessful());
-        setCheckmark("CRC VERIFICATION", result.isCrcVerified());
-        setCheckmark("DECRYPTION", result.isDecryptionSuccessful());
-        setCheckmark("BANKING TRANSACTION", result.isBankingTransactionSuccessful());
-        setCheckmark("DATABASE PERSISTENCE", result.isDatabasePersistenceSuccessful());
+        setCheckmark("Routing", result.isSuccessful() || (result.getRoutingPath() != null && !result.getRoutingPath().isEmpty()));
+        setCheckmark("Encryption", result.isEncryptionSuccessful());
+        setCheckmark("CRC Generation", result.isCrcGenerated());
+        setCheckmark("Reliable Delivery", result.isReliableTransmissionSuccessful());
+        setCheckmark("TCP Communication", result.isTcpSuccessful());
+        setCheckmark("CRC Verification", result.isCrcVerified());
+        setCheckmark("Decryption", result.isDecryptionSuccessful());
+        setCheckmark("Banking Transaction", result.isBankingTransactionSuccessful());
+        setCheckmark("Database Persistence", result.isDatabasePersistenceSuccessful());
     }
 
     private void setCheckmark(String stageKey, boolean success) {
         Label check = stageCheckmarkLabels.get(stageKey);
         if (check != null) {
             if (success) {
-                check.setText("✓ SUCCESS");
+                if ("CRC Verification".equalsIgnoreCase(stageKey)) {
+                    check.setText("PASSED");
+                } else {
+                    check.setText("SUCCESS");
+                }
                 check.setTextFill(Color.web("#10b981"));
             } else {
-                check.setText("✗ FAILED");
+                check.setText("FAILED");
                 check.setTextFill(Color.web("#ef4444"));
             }
         }

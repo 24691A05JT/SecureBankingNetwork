@@ -22,6 +22,7 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Optional;
 
 /**
  * End-to-End Secure Banking Transaction Communication Pipeline Orchestrator.
@@ -313,24 +314,56 @@ public class SecureBankingPipeline {
 
         // STAGE 11 — DATABASE PERSISTENCE
         LoggerUtil.info("[STAGE 11] Verifying SQLite database persistence...");
-        resultBuilder.databasePersistenceSuccessful(true);
-
         try (Connection conn = databaseManager.getConnection()) {
-            accountRepo.findByAccountNumber(conn, request.getSourceAccount())
-                    .ifPresent(acc -> resultBuilder.finalSourceBalance(acc.getBalance()));
-            accountRepo.findByAccountNumber(conn, request.getDestinationAccount())
-                    .ifPresent(acc -> resultBuilder.finalDestinationBalance(acc.getBalance()));
+            boolean persistenceVerified = true;
+            if (request.getSourceAccount() != null) {
+                Optional<com.banking.model.Account> src = accountRepo.findByAccountNumber(conn, request.getSourceAccount());
+                if (src.isPresent()) {
+                    resultBuilder.finalSourceBalance(src.get().getBalance());
+                } else {
+                    persistenceVerified = false;
+                }
+            }
+            if (request.getDestinationAccount() != null) {
+                Optional<com.banking.model.Account> dest = accountRepo.findByAccountNumber(conn, request.getDestinationAccount());
+                if (dest.isPresent()) {
+                    resultBuilder.finalDestinationBalance(dest.get().getBalance());
+                } else {
+                    persistenceVerified = false;
+                }
+            }
+
+            if (!persistenceVerified) {
+                LoggerUtil.error("[STAGE 11 ERROR] SQLite persistence verification failed: Account records not found in database.");
+                return resultBuilder
+                        .successful(false)
+                        .databasePersistenceSuccessful(false)
+                        .errorMessage("SQLite persistence verification failed: Account not found.")
+                        .build();
+            }
+
+            resultBuilder.databasePersistenceSuccessful(true);
+            LoggerUtil.info("[STAGE 11] SQLite persistence verified successfully.");
+            LoggerUtil.info("SQLite Persistence Status: SUCCESS");
         } catch (SQLException e) {
-            LoggerUtil.error("Failed to query final account balances: " + e.getMessage());
+            LoggerUtil.error("[STAGE 11 ERROR] SQLite persistence verification failed: " + e.getMessage());
+            return resultBuilder
+                    .successful(false)
+                    .databasePersistenceSuccessful(false)
+                    .errorMessage("SQLite persistence verification failed: " + e.getMessage())
+                    .build();
         }
 
         // STAGE 12 — RESPONSE
         LoggerUtil.info("[STAGE 12] Finalizing pipeline response...");
+        String txnId = (txnResult.getTransactionId() != null) ? txnResult.getTransactionId() : transaction.getTransactionId();
+        resultBuilder.transactionId(txnId);
         String finalResponse = String.format("PIPELINE_SUCCESS|TxnID=%s|Msg=%s",
-                txnResult.getTransactionId(), txnResult.getMessage());
+                txnId, txnResult.getMessage());
 
         LoggerUtil.info("==================================================");
         LoggerUtil.info("SECURE BANKING PIPELINE COMPLETED SUCCESSFULLY");
+        LoggerUtil.info("Pipeline Execution PASSED cleanly for Txn ID: " + txnId);
         LoggerUtil.info("==================================================");
 
         return resultBuilder
